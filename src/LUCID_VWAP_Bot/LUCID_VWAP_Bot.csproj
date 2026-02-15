@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>12</LangVersion>
+    <OutputType>Library</OutputType>
+    <RootNamespace>LUCID_VWAP_Bot</RootNamespace>
+    <AssemblyName>LUCID_VWAP_Bot</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- TODO: ATAS SDK DLL-Referenzen einbinden sobald Pfad bekannt -->
+  <!-- Typische ATAS SDK DLLs: -->
+  <!--
+  <ItemGroup>
+    <Reference Include="OFT.Platform.SDK">
+      <HintPath>..\..\lib\OFT.Platform.SDK.dll</HintPath>
+    </Reference>
+    <Reference Include="ATAS.Indicators">
+      <HintPath>..\..\lib\ATAS.Indicators.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  -->
+
+</Project>
