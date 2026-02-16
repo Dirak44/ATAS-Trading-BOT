@@ -3,11 +3,15 @@
 // Framework: .NET 8 / C# 12 | Plattform: ATAS ≥ 5.8.x
 
 using System.ComponentModel;
+using ATAS.DataFeedsCore;
 using ATAS.Indicators;
 using ATAS.Indicators.Technical;
 using ATAS.Strategies.Chart;
-using StockSharp.BusinessEntities;
-using StockSharp.Messages;
+using OFT.Attributes;
+using Utils.Common.Logging;
+
+// Alias um Ambiguity zwischen OFT.Attributes.Parameter und ATAS.Indicators.Parameter aufzulösen
+using Parameter = OFT.Attributes.ParameterAttribute;
 
 namespace LUCID_VWAP_Bot;
 
@@ -29,7 +33,7 @@ public class LucidVwapEliteV14 : ChartStrategy
     // INDIKATOREN
     // ═══════════════════════════════════════════════════════════════
 
-    private readonly VWAP _vwap = new() { Type = VWAPPeriodType.Daily };
+    private readonly VWAP _vwap = new();
     private readonly EMA _ema = new() { Period = 20 };
     private readonly ATR _atr = new() { Period = 14 };
 
@@ -140,7 +144,7 @@ public class LucidVwapEliteV14 : ChartStrategy
     private bool _ibComplete;
     private TimeSpan _ibEndTime;
 
-    // Vortages-Profil: Preis → Volumen (TPO-artig)
+    // Vortages-Profil: Preis → Volumen
     private readonly Dictionary<decimal, decimal> _todayProfile = new();
     private readonly Dictionary<decimal, decimal> _prevProfile = new();
     private decimal _todayTotalVolume;
@@ -189,9 +193,7 @@ public class LucidVwapEliteV14 : ChartStrategy
             if (bar >= 2)
                 UpdateSwingPoints(bar);
 
-            // ═══════════════════════════════════════
             // Ab hier: nur neueste Kerze verarbeiten
-            // ═══════════════════════════════════════
             if (bar != CurrentBar - 1) return;
 
             // ═══════════════════════════════════════
@@ -229,14 +231,10 @@ public class LucidVwapEliteV14 : ChartStrategy
             bool aboveVAH = _prevVAH > 0 && candle.Close > _prevVAH;
             bool belowVAL = _prevVAL > 0 && candle.Close < _prevVAL;
 
-            if (!aboveVAH && !belowVAL)
-            {
-                // Innerhalb Value Area → kein Trade
-                return;
-            }
+            if (!aboveVAH && !belowVAL) return;
 
             // --- 2. Liquidity Sweep erkennen ---
-            var tickSize = Security.MinStepSize;
+            var tickSize = Security.TickSize;
             if (tickSize <= 0) tickSize = 0.25m;
             decimal sweepThreshold = SweepThresholdTicks * tickSize;
 
@@ -245,7 +243,6 @@ public class LucidVwapEliteV14 : ChartStrategy
 
             if (aboveVAH)
             {
-                // Short-Setup: Sweep über ein Swing-High, dann Close zurück darunter
                 foreach (var swingHigh in _recentHighs)
                 {
                     if (candle.High > swingHigh + sweepThreshold &&
@@ -260,7 +257,6 @@ public class LucidVwapEliteV14 : ChartStrategy
 
             if (belowVAL)
             {
-                // Long-Setup: Sweep unter ein Swing-Low, dann Close zurück darüber
                 foreach (var swingLow in _recentLows)
                 {
                     if (candle.Low < swingLow - sweepThreshold &&
@@ -279,14 +275,10 @@ public class LucidVwapEliteV14 : ChartStrategy
             bool absorption = DetectAbsorption(candle, tickSize);
             if (!absorption) return;
 
-            bool deltaFlipBullish = false;
-            bool deltaFlipBearish = false;
-            DetectDeltaFlip(bar, out deltaFlipBullish, out deltaFlipBearish);
+            DetectDeltaFlip(bar, out bool deltaFlipBullish, out bool deltaFlipBearish);
 
             // ═══════════════════════════════════════
             // KOMBINIERTE ENTRY-LOGIK
-            // Long:  Preis < VAL → Sweep unter Low → Absorption → Delta Flip bullish
-            // Short: Preis > VAH → Sweep über High → Absorption → Delta Flip bearish
             // ═══════════════════════════════════════
 
             bool longSignal = belowVAL && sweepLow && absorption && deltaFlipBullish;
@@ -295,15 +287,10 @@ public class LucidVwapEliteV14 : ChartStrategy
             if (longSignal && shortSignal) return;
             if (!longSignal && !shortSignal) return;
 
-            // Log alle Bedingungen
             this.LogInfo($"[Bar {bar}] AMT: VAH={_prevVAH:F2} VAL={_prevVAL:F2} VPOC={_prevVPOC:F2} | " +
                          $"Close={candle.Close:F2} aboveVAH={aboveVAH} belowVAL={belowVAL}");
             this.LogInfo($"[Bar {bar}] LIQ: SweepHigh={sweepHigh} SweepLow={sweepLow} | " +
                          $"OF: Absorption={absorption} DeltaFlipBull={deltaFlipBullish} DeltaFlipBear={deltaFlipBearish}");
-
-            // ═══════════════════════════════════════
-            // TRADE AUSFÜHREN
-            // ═══════════════════════════════════════
 
             if (longSignal)
             {
@@ -318,7 +305,7 @@ public class LucidVwapEliteV14 : ChartStrategy
         }
         catch (Exception ex)
         {
-            this.LogError($"[Bar {bar}] FEHLER in OnCalculate: {ex.Message}");
+            this.LogError($"[Bar {bar}] FEHLER in OnCalculate", ex);
         }
     }
 
@@ -328,11 +315,9 @@ public class LucidVwapEliteV14 : ChartStrategy
 
     private void UpdateVolumeProfile(IndicatorCandle candle)
     {
-        // Volumen auf Close-Preis-Level aggregieren (vereinfachtes Profil)
-        var tickSize = Security.MinStepSize;
+        var tickSize = Security.TickSize;
         if (tickSize <= 0) tickSize = 0.25m;
 
-        // Preis auf Tick-Level runden
         decimal priceLevel = Math.Round(candle.Close / tickSize) * tickSize;
 
         if (_todayProfile.TryGetValue(priceLevel, out var existing))
@@ -350,10 +335,8 @@ public class LucidVwapEliteV14 : ChartStrategy
         decimal totalVol = _prevProfile.Values.Sum();
         if (totalVol <= 0) return;
 
-        // VPOC = Preis-Level mit höchstem Volumen
         _prevVPOC = _prevProfile.MaxBy(kv => kv.Value).Key;
 
-        // Value Area: Von VPOC aus expandieren bis VA_Percent% des Volumens
         decimal targetVol = totalVol * (VA_Percent / 100m);
         decimal accumulatedVol = _prevProfile[_prevVPOC];
 
@@ -440,7 +423,6 @@ public class LucidVwapEliteV14 : ChartStrategy
     {
         try
         {
-            // Swing High: Bar[n-1].High > Bar[n-2].High UND Bar[n-1].High > Bar[n].High
             var prev = GetCandle(bar - 1);
             var prevPrev = GetCandle(bar - 2);
             var curr = GetCandle(bar);
@@ -461,7 +443,7 @@ public class LucidVwapEliteV14 : ChartStrategy
         }
         catch (Exception ex)
         {
-            this.LogError($"[Bar {bar}] FEHLER in UpdateSwingPoints: {ex.Message}");
+            this.LogError($"[Bar {bar}] FEHLER in UpdateSwingPoints", ex);
         }
     }
 
@@ -471,8 +453,6 @@ public class LucidVwapEliteV14 : ChartStrategy
 
     private bool DetectAbsorption(IndicatorCandle candle, decimal tickSize)
     {
-        // Absorption = hohes Volumen bei geringem Preisfortschritt
-        // → Markt "absorbiert" die Liquidität, lehnt das Level ab
         if (tickSize <= 0) tickSize = 0.25m;
 
         decimal range = candle.High - candle.Low;
@@ -496,7 +476,6 @@ public class LucidVwapEliteV14 : ChartStrategy
         {
             var current = GetCandle(bar);
 
-            // Prüfe ob Delta in den letzten Bars das Vorzeichen gewechselt hat
             bool wasBearish = false;
             bool wasBullish = false;
 
@@ -507,29 +486,27 @@ public class LucidVwapEliteV14 : ChartStrategy
                 if (prev.Delta > 0) wasBullish = true;
             }
 
-            // Bullish Flip: vorher negatives Delta, jetzt positiv
             if (wasBearish && current.Delta > 0)
                 bullish = true;
 
-            // Bearish Flip: vorher positives Delta, jetzt negativ
             if (wasBullish && current.Delta < 0)
                 bearish = true;
         }
         catch (Exception ex)
         {
-            this.LogError($"[Bar {bar}] FEHLER in DetectDeltaFlip: {ex.Message}");
+            this.LogError($"[Bar {bar}] FEHLER in DetectDeltaFlip", ex);
         }
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // TRADE EXECUTION
+    // TRADE EXECUTION (ATAS DataFeedsCore API)
     // ═══════════════════════════════════════════════════════════════
 
     private void ExecuteTrade(int bar, bool isLong, decimal entryPrice, decimal atrValue)
     {
         try
         {
-            var tickSize = Security.MinStepSize;
+            var tickSize = Security.TickSize;
             if (tickSize <= 0) tickSize = 0.25m;
 
             decimal slDist = Math.Max(8 * tickSize, atrValue * AtrMultSL);
@@ -544,40 +521,40 @@ public class LucidVwapEliteV14 : ChartStrategy
             decimal slPrice = isLong ? entryPrice - slDist : entryPrice + slDist;
             decimal tpPrice = isLong ? entryPrice + tpDist : entryPrice - tpDist;
 
-            var direction = isLong ? Sides.Buy : Sides.Sell;
-            var exitDirection = isLong ? Sides.Sell : Sides.Buy;
+            var direction = isLong ? OrderDirections.Buy : OrderDirections.Sell;
+            var exitDirection = isLong ? OrderDirections.Sell : OrderDirections.Buy;
 
             // Entry Order (Limit)
             OpenOrder(new Order
             {
-                Security = Security,
                 Portfolio = Portfolio,
+                Security = Security,
                 Direction = direction,
                 Type = OrderTypes.Limit,
                 Price = entryPrice,
-                Volume = MyQuantity
+                QuantityToFill = MyQuantity
             });
 
             // Stop-Loss Order
             OpenOrder(new Order
             {
-                Security = Security,
                 Portfolio = Portfolio,
+                Security = Security,
                 Direction = exitDirection,
-                Type = OrderTypes.Conditional,
+                Type = OrderTypes.Stop,
                 Price = slPrice,
-                Volume = MyQuantity
+                QuantityToFill = MyQuantity
             });
 
             // Take-Profit Order (Limit)
             OpenOrder(new Order
             {
-                Security = Security,
                 Portfolio = Portfolio,
+                Security = Security,
                 Direction = exitDirection,
                 Type = OrderTypes.Limit,
                 Price = tpPrice,
-                Volume = MyQuantity
+                QuantityToFill = MyQuantity
             });
 
             _orderPending = true;
@@ -590,7 +567,7 @@ public class LucidVwapEliteV14 : ChartStrategy
         }
         catch (Exception ex)
         {
-            this.LogError($"[Bar {bar}] FEHLER in ExecuteTrade: {ex.Message}");
+            this.LogError($"[Bar {bar}] FEHLER in ExecuteTrade", ex);
         }
     }
 
@@ -598,16 +575,27 @@ public class LucidVwapEliteV14 : ChartStrategy
     // POSITION MANAGEMENT
     // ═══════════════════════════════════════════════════════════════
 
-    protected override void OnPositionChanged(Position position)
+    protected override void OnCurrentPositionChanged()
     {
         if (Math.Abs(CurrentPosition) < 0.001m)
         {
             _orderPending = false;
-
-            foreach (var o in Orders.Where(o => o.Balance > 0))
-                CancelOrder(o);
-
+            CancelAllActiveOrders();
             this.LogInfo($"FLAT – Tages-PnL: {_dailyPnL:F2} USD | Trades heute: {_tradesToday}");
+        }
+    }
+
+    protected override void OnStopping()
+    {
+        CancelAllActiveOrders();
+    }
+
+    private void CancelAllActiveOrders()
+    {
+        foreach (var o in Orders)
+        {
+            if (o.State == OrderStates.Active)
+                CancelOrder(o);
         }
     }
 
@@ -619,7 +607,6 @@ public class LucidVwapEliteV14 : ChartStrategy
     {
         if (candleTime.Date > _lastSessionDate.Date)
         {
-            // Vortages-Profil → Value Area berechnen
             if (_todayProfile.Count > 0)
             {
                 _prevProfile.Clear();
@@ -629,13 +616,11 @@ public class LucidVwapEliteV14 : ChartStrategy
                 CalculateValueArea();
             }
 
-            // Tages-Reset
             _lastSessionDate = candleTime;
             _tradesToday = 0;
             _dailyPnL = 0m;
             _orderPending = false;
 
-            // Session/IB Reset
             _sessionHigh = decimal.MinValue;
             _sessionLow = decimal.MaxValue;
             _ibHigh = decimal.MinValue;
@@ -643,11 +628,9 @@ public class LucidVwapEliteV14 : ChartStrategy
             _ibComplete = false;
             _ibEndTime = TimeSpan.Zero;
 
-            // Profil Reset
             _todayProfile.Clear();
             _todayTotalVolume = 0;
 
-            // Swing-Punkte Reset
             _recentHighs.Clear();
             _recentLows.Clear();
 

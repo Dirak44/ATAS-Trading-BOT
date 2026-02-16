@@ -15,6 +15,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- ATAS Core -->
     <Reference Include="ATAS.Strategies">
       <HintPath>$(ATASPath)\ATAS.Strategies.dll</HintPath>
       <Private>false</Private>
@@ -35,16 +36,24 @@
       <HintPath>$(ATASPath)\ATAS.DataFeedsCore.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <Reference Include="Utils.Common">
-      <HintPath>$(ATASPath)\Utils.Common.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
+
+    <!-- OFT (Parameter-Attribute) -->
     <Reference Include="OFT.Attributes">
       <HintPath>$(ATASPath)\OFT.Attributes.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="OFT.Core">
       <HintPath>$(ATASPath)\OFT.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Utils.Common">
+      <HintPath>$(ATASPath)\Utils.Common.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!-- StockSharp (transitive Abhängigkeiten von ATAS) -->
+    <Reference Include="StockSharp.Logging">
+      <HintPath>$(ATASPath)\StockSharp.Logging.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="StockSharp.BusinessEntities">
@@ -55,8 +64,26 @@
       <HintPath>$(ATASPath)\StockSharp.Messages.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <Reference Include="StockSharp.Logging">
-      <HintPath>$(ATASPath)\StockSharp.Logging.dll</HintPath>
+    <Reference Include="StockSharp.Localization">
+      <HintPath>$(ATASPath)\StockSharp.Localization.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!-- Ecng (transitive Abhängigkeiten) -->
+    <Reference Include="Ecng.Common">
+      <HintPath>$(ATASPath)\Ecng.Common.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Ecng.ComponentModel">
+      <HintPath>$(ATASPath)\Ecng.ComponentModel.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Ecng.Collections">
+      <HintPath>$(ATASPath)\Ecng.Collections.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Ecng.Serialization">
+      <HintPath>$(ATASPath)\Ecng.Serialization.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

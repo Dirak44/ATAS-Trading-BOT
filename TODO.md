@@ -10,7 +10,7 @@
 ## ATAS SDK Integration
 - [x] ATAS SDK DLL-Pfad ermitteln & DLL-Referenzen im .csproj einbinden
 - [x] Alle Platzhalter durch echte SDK-Aufrufe ersetzt (ChartStrategy, Indikatoren, Orders, Logging)
-- [ ] `dotnet build` erfolgreich durchführen (erfordert ATAS Installation auf Build-Maschine)
+- [x] `dotnet build` erfolgreich ✅ (0 Fehler, nur Warnings)
 
 ## Strategy-Implementierung (V14 – Basis) ✅
 - [x] Konstruktor + Indikatoren (VWAP, EMA 20, ATR 14)

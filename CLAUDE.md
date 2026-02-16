@@ -41,57 +41,52 @@ ATAS SDK DLLs werden aus `C:\Program Files (x86)\ATAS Platform` referenziert.
 
 ## ATAS SDK Build-Wissen (ermittelt 16.02.2026)
 
-### DLL-Referenzen die benötigt werden
+### BUILD ERFOLGREICH ✅
+`dotnet build src/LUCID_VWAP_Bot/` → `LUCID_VWAP_Bot.dll`
+Nur Warnings (WindowsBase Versionskonflikt + Stop() deprecated), keine Fehler.
+
+### DLL-Referenzen (alle im csproj)
 ATAS-Installation: `C:\Program Files (x86)\ATAS Platform`
 ```
-ATAS.Strategies.dll       ← ChartStrategy Basisklasse
-ATAS.Indicators.dll       ← VWAP, EMA, ATR + ParameterAttribute (VERALTET!)
+ATAS.Strategies.dll          ← ChartStrategy Basisklasse
+ATAS.Indicators.dll          ← VWAP, EMA, ATR Indikatoren
 ATAS.Indicators.Technical.dll ← Technische Indikatoren
-ATAS.Types.dll            ← Basis-Typen
-ATAS.DataFeedsCore.dll    ← Datafeed-Typen
-Utils.Common.dll          ← ParameterAttribute lebt HIER (von OFT referenziert)
-OFT.Attributes.dll        ← [Parameter] Attribut (RICHTIG, OFT.Attributes.ParameterAttribute)
-OFT.Core.dll              ← Core-Typen
-StockSharp.BusinessEntities.dll ← Security, Portfolio, Position, Order
-StockSharp.Messages.dll   ← Sides, OrderTypes
-StockSharp.Logging.dll    ← Logging Extensions
+ATAS.Types.dll               ← Basis-Typen
+ATAS.DataFeedsCore.dll       ← Order, Security, Portfolio, OrderDirections, OrderTypes
+Utils.Common.dll             ← Logging (Utils.Common.Logging)
+OFT.Attributes.dll           ← [Parameter] Attribut
+OFT.Core.dll                 ← Core-Typen
+StockSharp.BusinessEntities.dll ← Transitive Abhängigkeit
+StockSharp.Messages.dll      ← Transitive Abhängigkeit
+StockSharp.Logging.dll       ← Transitive Abhängigkeit
+StockSharp.Localization.dll  ← Transitive Abhängigkeit
+Ecng.Common.dll              ← Transitive Abhängigkeit
+Ecng.ComponentModel.dll      ← Transitive Abhängigkeit
+Ecng.Collections.dll         ← Transitive Abhängigkeit
+Ecng.Serialization.dll       ← Transitive Abhängigkeit
 ```
 
-### Bekannte Build-Probleme & Lösungen
+### Richtige API-Typen & Namespaces
+| Konzept | Korrekt | FALSCH |
+|---------|---------|--------|
+| Order-Typen | `ATAS.DataFeedsCore.Order` | ~~StockSharp.BusinessEntities.Order~~ |
+| Security | `ATAS.DataFeedsCore.Security` | ~~StockSharp.BusinessEntities.Security~~ |
+| Portfolio | `ATAS.DataFeedsCore.Portfolio` | ~~StockSharp.BusinessEntities.Portfolio~~ |
+| Richtung | `OrderDirections.Buy/Sell` | ~~Sides.Buy/Sell~~ |
+| Order-Menge | `QuantityToFill` | ~~Volume~~ |
+| Aktive Order | `order.State == OrderStates.Active` | ~~order.Balance > 0~~ |
+| Tick-Size | `Security.TickSize` | ~~Security.MinStepSize~~ |
+| Stop-Order | `OrderTypes.Stop` | ~~OrderTypes.Conditional~~ |
+| Parameter | `using Parameter = OFT.Attributes.ParameterAttribute;` | ~~using OFT.Attributes + using ATAS.Indicators~~ |
+| Logging | `using Utils.Common.Logging;` → `this.LogInfo()` | ~~using StockSharp.Logging~~ |
+| LogError | `this.LogError("msg", ex)` | ~~this.LogError($"msg: {ex.Message}")~~ |
+| Position | `OnCurrentPositionChanged()` (kein Parameter) | ~~OnPositionChanged(Position)~~ |
+| VWAP | `new VWAP()` (Default = Daily) | ~~Type = VWAPPeriodType.Daily~~ |
+| Stop | `Stop()` (deprecated) oder `StopAsync()` | |
 
-#### 1. `[Parameter]` Ambiguity
-**Problem:** `CS0104: "Parameter" ist mehrdeutig zwischen OFT.Attributes.ParameterAttribute und ATAS.Indicators.ParameterAttribute`
-**Lösung:** `ATAS.Indicators.ParameterAttribute` ist als `[Obsolete]` markiert mit Hinweis "Use OFT.Attributes.ParameterAttribute instead".
-→ Entweder `using OFT.Attributes;` und NICHT `using ATAS.Indicators;` zusammen verwenden,
-→ ODER vollqualifiziert: `[OFT.Attributes.Parameter]`
-→ ODER mit `using Parameter = OFT.Attributes.ParameterAttribute;` alias
-
-#### 2. `ValueAreaPercent` Property-Hiding (CS0108)
-**Problem:** `ChartStrategy` hat bereits eine Property `ValueAreaPercent`
-**Lösung:** Property umbenannt zu `VA_Percent`
-
-#### 3. `OnPositionChanged(Position)` – CS0115
-**Problem:** `override` passt nicht – Methode existiert möglicherweise nicht in der Basisklasse
-**Status:** OFFEN – Signatur von ChartStrategy.OnPositionChanged muss noch ermittelt werden
-- Reflection scheitert an Assembly-Abhängigkeiten
-- Binär-Suche in DLL findet "OnPositionChanged" NICHT in ATAS.Strategies.dll
-- **TODO:** ATAS Online-Doku/API-Referenz oder Beispiel-Strategies prüfen
-- **Möglichkeit:** Event-basiert statt override (z.B. `PositionChanged += handler`)
-- **Möglichkeit:** Methode heißt anders oder kommt aus einem Interface
-
-#### 4. WindowsBase Versions-Warnung (MSB3277)
-**Problem:** Konflikt WindowsBase 4.0 vs 8.0
-**Status:** Nur Warning, nicht blockierend. Kann ignoriert werden.
-
-### ATAS DLLs im Ordner (Referenz)
-```
-ATAS.Strategies.dll, ATAS.Indicators.dll, ATAS.Indicators.Technical.dll,
-ATAS.Indicators.Other.dll, ATAS.Types.dll, ATAS.DataFeedsCore.dll,
-OFT.Attributes.dll, OFT.Core.dll, Utils.Common.dll,
-StockSharp.BusinessEntities.dll, StockSharp.Messages.dll, StockSharp.Logging.dll,
-StockSharp.Algo.dll, StockSharp.Community.dll, StockSharp.Configuration.dll,
-StockSharp.Fix.dll, StockSharp.Licensing.dll, StockSharp.Localization.dll
-```
+### Bekannte Warnings (ignorierbar)
+1. **WindowsBase** Versionskonflikt 4.0 vs 8.0 – nur Warning
+2. **Stop()** deprecated → `StopAsync()` empfohlen
 
 ## V15 Signal-Logik (ALLE Bedingungen gleichzeitig)
 
