@@ -122,6 +122,30 @@ public class LucidVwapEliteV14 : ChartStrategy
     public int DeltaFlipBars { get; set; } = 3;
 
     // ═══════════════════════════════════════════════════════════════
+    // PARAMETER – Trailing Stop
+    // ═══════════════════════════════════════════════════════════════
+
+    [Parameter]
+    [DisplayName("Trailing-Stop aktiv")]
+    public bool UseTrailingStop { get; set; } = false;
+
+    [Parameter]
+    [DisplayName("Trailing-Stop ATR Mult")]
+    public decimal TrailingStopAtrMult { get; set; } = 1.5m;
+
+    // ═══════════════════════════════════════════════════════════════
+    // PARAMETER – Failed Continuation
+    // ═══════════════════════════════════════════════════════════════
+
+    [Parameter]
+    [DisplayName("Failed Continuation aktiv")]
+    public bool UseFailedContinuation { get; set; } = true;
+
+    [Parameter]
+    [DisplayName("Failed Cont. Lookback (Bars)")]
+    public int FailedContBars { get; set; } = 3;
+
+    // ═══════════════════════════════════════════════════════════════
     // INTERNE FELDER – Trade Management
     // ═══════════════════════════════════════════════════════════════
 
@@ -155,6 +179,20 @@ public class LucidVwapEliteV14 : ChartStrategy
 
     private readonly List<decimal> _recentHighs = new();
     private readonly List<decimal> _recentLows = new();
+
+    // ═══════════════════════════════════════════════════════════════
+    // INTERNE FELDER – Poor High/Low (Single-Print-Extremes)
+    // ═══════════════════════════════════════════════════════════════
+
+    private int _sessionHighHitCount;
+    private int _sessionLowHitCount;
+
+    // ═══════════════════════════════════════════════════════════════
+    // INTERNE FELDER – Trailing-Stop
+    // ═══════════════════════════════════════════════════════════════
+
+    private decimal _trailingStopPrice;
+    private bool _isLongPosition;
 
     // ═══════════════════════════════════════════════════════════════
     // KONSTRUKTOR
@@ -195,6 +233,15 @@ public class LucidVwapEliteV14 : ChartStrategy
 
             // Ab hier: nur neueste Kerze verarbeiten
             if (bar != CurrentBar - 1) return;
+
+            // ═══════════════════════════════════════
+            // TRAILING-STOP MANAGEMENT (bei offener Position)
+            // ═══════════════════════════════════════
+
+            if (UseTrailingStop && CurrentPosition != 0 && _trailingStopPrice > 0)
+            {
+                UpdateTrailingStop(bar, candle);
+            }
 
             // ═══════════════════════════════════════
             // FILTER-KASKADE
@@ -277,29 +324,53 @@ public class LucidVwapEliteV14 : ChartStrategy
 
             DetectDeltaFlip(bar, out bool deltaFlipBullish, out bool deltaFlipBearish);
 
+            // --- 4. Zusätzliche Bestätigungen (optional, nicht blockierend) ---
+
+            // LVN: Preis liegt nahe einem Low Volume Node → erhöht Signalqualität
+            bool nearLVN = IsNearLVN(candle.Close, tickSize);
+
+            // Poor High/Low: Session-Extreme mit nur 1 Touch → unvollständige Auktion
+            bool poorHigh = IsPoorHigh();
+            bool poorLow = IsPoorLow();
+
+            // Failed Continuation: Breakout-Versuch der gescheitert ist
+            bool failedContBullish = DetectFailedContinuation(bar, checkBullish: true);
+            bool failedContBearish = DetectFailedContinuation(bar, checkBullish: false);
+
             // ═══════════════════════════════════════
             // KOMBINIERTE ENTRY-LOGIK
             // ═══════════════════════════════════════
 
+            // Basis-Signal: AMT + Sweep + Absorption + Delta Flip (alle Pflicht)
             bool longSignal = belowVAL && sweepLow && absorption && deltaFlipBullish;
             bool shortSignal = aboveVAH && sweepHigh && absorption && deltaFlipBearish;
+
+            // Bonus-Bestätigungen: LVN, Poor High/Low, Failed Continuation
+            // stärken das Signal (für Logging/Analyse), blockieren es aber nicht
+            int longConfirmations = (nearLVN ? 1 : 0) + (poorLow ? 1 : 0) + (failedContBullish ? 1 : 0);
+            int shortConfirmations = (nearLVN ? 1 : 0) + (poorHigh ? 1 : 0) + (failedContBearish ? 1 : 0);
 
             if (longSignal && shortSignal) return;
             if (!longSignal && !shortSignal) return;
 
             this.LogInfo($"[Bar {bar}] AMT: VAH={_prevVAH:F2} VAL={_prevVAL:F2} VPOC={_prevVPOC:F2} | " +
                          $"Close={candle.Close:F2} aboveVAH={aboveVAH} belowVAL={belowVAL}");
-            this.LogInfo($"[Bar {bar}] LIQ: SweepHigh={sweepHigh} SweepLow={sweepLow} | " +
-                         $"OF: Absorption={absorption} DeltaFlipBull={deltaFlipBullish} DeltaFlipBear={deltaFlipBearish}");
+            this.LogInfo($"[Bar {bar}] LIQ: SweepHigh={sweepHigh} SweepLow={sweepLow} LVN={nearLVN} | " +
+                         $"PoorHigh={poorHigh} PoorLow={poorLow}");
+            this.LogInfo($"[Bar {bar}] OF: Absorption={absorption} DeltaFlipBull={deltaFlipBullish} " +
+                         $"DeltaFlipBear={deltaFlipBearish} FailedContBull={failedContBullish} " +
+                         $"FailedContBear={failedContBearish}");
 
             if (longSignal)
             {
-                this.LogInfo($"[Bar {bar}] *** SIGNAL LONG *** Sweep+Absorption+DeltaFlip unter VAL");
+                this.LogInfo($"[Bar {bar}] *** SIGNAL LONG *** Sweep+Absorption+DeltaFlip unter VAL " +
+                             $"(+{longConfirmations} Bonus: LVN={nearLVN} PoorLow={poorLow} FailedCont={failedContBullish})");
                 ExecuteTrade(bar, isLong: true, candle.Close, atrValue);
             }
             else if (shortSignal)
             {
-                this.LogInfo($"[Bar {bar}] *** SIGNAL SHORT *** Sweep+Absorption+DeltaFlip über VAH");
+                this.LogInfo($"[Bar {bar}] *** SIGNAL SHORT *** Sweep+Absorption+DeltaFlip über VAH " +
+                             $"(+{shortConfirmations} Bonus: LVN={nearLVN} PoorHigh={poorHigh} FailedCont={failedContBearish})");
                 ExecuteTrade(bar, isLong: false, candle.Close, atrValue);
             }
         }
@@ -389,8 +460,28 @@ public class LucidVwapEliteV14 : ChartStrategy
         if (tod < new TimeSpan(15, 30, 0) || tod > new TimeSpan(21, 0, 0))
             return;
 
-        if (candle.High > _sessionHigh) _sessionHigh = candle.High;
-        if (candle.Low < _sessionLow) _sessionLow = candle.Low;
+        var tickSize = Security.TickSize;
+        if (tickSize <= 0) tickSize = 0.25m;
+
+        if (candle.High > _sessionHigh)
+        {
+            _sessionHigh = candle.High;
+            _sessionHighHitCount = 1;
+        }
+        else if (Math.Abs(candle.High - _sessionHigh) <= tickSize)
+        {
+            _sessionHighHitCount++;
+        }
+
+        if (candle.Low < _sessionLow)
+        {
+            _sessionLow = candle.Low;
+            _sessionLowHitCount = 1;
+        }
+        else if (Math.Abs(candle.Low - _sessionLow) <= tickSize)
+        {
+            _sessionLowHitCount++;
+        }
     }
 
     private void UpdateInitialBalance(IndicatorCandle candle)
@@ -445,6 +536,136 @@ public class LucidVwapEliteV14 : ChartStrategy
         {
             this.LogError($"[Bar {bar}] FEHLER in UpdateSwingPoints", ex);
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // LIQUIDITY – LOW VOLUME NODES (LVN) / THIN BOOKS
+    // ═══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Prüft ob der aktuelle Preis nahe einem Low Volume Node (LVN) liegt.
+    /// LVN = Preis-Level im Vortages-Profil mit weniger als LVN_Threshold %
+    /// des Durchschnittsvolumens. Diese "dünnen Stellen" im Profil sind Bereiche
+    /// wo Preis schnell durchlaufen kann → gute Reversal-Zonen.
+    /// </summary>
+    private bool IsNearLVN(decimal price, decimal tickSize)
+    {
+        if (_prevProfile.Count == 0) return false;
+        if (tickSize <= 0) tickSize = 0.25m;
+
+        decimal avgVol = _prevProfile.Values.Average();
+        decimal lvnThreshold = avgVol * (LVN_Threshold / 100m);
+
+        // Suche im Umkreis von ±5 Ticks um den aktuellen Preis
+        for (int i = -5; i <= 5; i++)
+        {
+            decimal level = Math.Round(price / tickSize) * tickSize + i * tickSize;
+
+            if (_prevProfile.TryGetValue(level, out var vol))
+            {
+                if (vol < lvnThreshold)
+                {
+                    this.LogInfo($"LVN erkannt bei {level:F2} (Vol={vol:F0} < Threshold={lvnThreshold:F0})");
+                    return true;
+                }
+            }
+            else
+            {
+                // Level existiert nicht im Profil → definitiv dünn / kein Volumen
+                this.LogInfo($"LVN erkannt bei {level:F2} (kein Volumen im Profil)");
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // LIQUIDITY – POOR HIGH / POOR LOW (SINGLE-PRINT-EXTREMES)
+    // ═══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Ein "Poor High" entsteht wenn das Session-High nur 1x berührt wurde
+    /// (Single Print) → unvollständige Auktion, Markt wird dieses Level
+    /// wahrscheinlich nochmal testen. Gleiche Logik für Poor Low.
+    /// </summary>
+    private bool IsPoorHigh()
+    {
+        return _sessionHighHitCount <= 1 && _sessionHigh != decimal.MinValue;
+    }
+
+    private bool IsPoorLow()
+    {
+        return _sessionLowHitCount <= 1 && _sessionLow != decimal.MaxValue;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ORDERFLOW – FAILED CONTINUATION ERKENNUNG
+    // ═══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Failed Continuation = Breakout-Versuch der scheitert.
+    /// Preis bricht über ein Swing-High (oder unter Swing-Low) aus,
+    /// aber innerhalb von FailedContBars kehrt er zurück und schliesst
+    /// innerhalb der vorherigen Range → Breakout ist gescheitert.
+    /// Starkes Reversal-Signal.
+    /// </summary>
+    private bool DetectFailedContinuation(int bar, bool checkBullish)
+    {
+        if (!UseFailedContinuation) return false;
+        if (bar < FailedContBars + 2) return false;
+
+        try
+        {
+            var current = GetCandle(bar);
+
+            if (checkBullish)
+            {
+                // Failed Continuation nach unten → bullisches Signal
+                // Preis bricht unter Swing-Low, kommt aber zurück
+                for (int i = 1; i <= FailedContBars; i++)
+                {
+                    var breakoutBar = GetCandle(bar - i);
+                    foreach (var swingLow in _recentLows)
+                    {
+                        // Bar hat unter Swing-Low geschlossen (Breakout-Versuch)
+                        if (breakoutBar.Close < swingLow && current.Close > swingLow)
+                        {
+                            this.LogInfo($"[Bar {bar}] FAILED CONTINUATION BULLISH: " +
+                                         $"Bar-{i} Close={breakoutBar.Close:F2} < SwingLow={swingLow:F2}, " +
+                                         $"jetzt Close={current.Close:F2} zurück darüber");
+                            return true;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // Failed Continuation nach oben → bärisches Signal
+                // Preis bricht über Swing-High, kommt aber zurück
+                for (int i = 1; i <= FailedContBars; i++)
+                {
+                    var breakoutBar = GetCandle(bar - i);
+                    foreach (var swingHigh in _recentHighs)
+                    {
+                        // Bar hat über Swing-High geschlossen (Breakout-Versuch)
+                        if (breakoutBar.Close > swingHigh && current.Close < swingHigh)
+                        {
+                            this.LogInfo($"[Bar {bar}] FAILED CONTINUATION BEARISH: " +
+                                         $"Bar-{i} Close={breakoutBar.Close:F2} > SwingHigh={swingHigh:F2}, " +
+                                         $"jetzt Close={current.Close:F2} zurück darunter");
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            this.LogError($"[Bar {bar}] FEHLER in DetectFailedContinuation", ex);
+        }
+
+        return false;
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -559,11 +780,24 @@ public class LucidVwapEliteV14 : ChartStrategy
 
             _orderPending = true;
             _tradesToday++;
+            _isLongPosition = isLong;
+
+            // Trailing-Stop initialisieren (falls aktiv)
+            if (UseTrailingStop)
+            {
+                decimal trailDist = atrValue * TrailingStopAtrMult;
+                _trailingStopPrice = isLong
+                    ? entryPrice - trailDist
+                    : entryPrice + trailDist;
+                this.LogInfo($"[Bar {bar}] TRAILING-STOP initialisiert: {_trailingStopPrice:F2} " +
+                             $"(Abstand={trailDist:F2}, ATR*{TrailingStopAtrMult})");
+            }
 
             string dir = isLong ? "LONG" : "SHORT";
             this.LogInfo($"[Bar {bar}] TRADE #{_tradesToday} {dir} | " +
                          $"Entry={entryPrice:F2} | SL={slPrice:F2} | TP={tpPrice:F2} | " +
-                         $"Qty={MyQuantity} | R:R={tpDist / slDist:F2}");
+                         $"Qty={MyQuantity} | R:R={tpDist / slDist:F2}" +
+                         (UseTrailingStop ? $" | TrailStop={_trailingStopPrice:F2}" : ""));
         }
         catch (Exception ex)
         {
@@ -580,6 +814,7 @@ public class LucidVwapEliteV14 : ChartStrategy
         if (Math.Abs(CurrentPosition) < 0.001m)
         {
             _orderPending = false;
+            _trailingStopPrice = 0;
             CancelAllActiveOrders();
             this.LogInfo($"FLAT – Tages-PnL: {_dailyPnL:F2} USD | Trades heute: {_tradesToday}");
         }
@@ -597,6 +832,96 @@ public class LucidVwapEliteV14 : ChartStrategy
             if (o.State == OrderStates.Active)
                 CancelOrder(o);
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // TRAILING-STOP LOGIK
+    // ═══════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Trailing-Stop: Zieht den Stop-Loss nach, wenn sich der Preis
+    /// in die gewünschte Richtung bewegt. Nutzt ATR-basierten Abstand.
+    /// Bei Long: Stop wird nach oben nachgezogen wenn neues High.
+    /// Bei Short: Stop wird nach unten nachgezogen wenn neues Low.
+    /// </summary>
+    private void UpdateTrailingStop(int bar, IndicatorCandle candle)
+    {
+        try
+        {
+            var atrValue = _atr[bar];
+            decimal trailDist = atrValue * TrailingStopAtrMult;
+
+            if (_isLongPosition)
+            {
+                // Long: Trail-Stop nachziehen wenn Preis steigt
+                decimal newTrailStop = candle.High - trailDist;
+                if (newTrailStop > _trailingStopPrice)
+                {
+                    decimal oldStop = _trailingStopPrice;
+                    _trailingStopPrice = newTrailStop;
+                    this.LogInfo($"[Bar {bar}] TRAILING-STOP LONG nachgezogen: " +
+                                 $"{oldStop:F2} → {_trailingStopPrice:F2} (High={candle.High:F2})");
+                }
+
+                // Prüfe ob Trailing-Stop ausgelöst wurde
+                if (candle.Low <= _trailingStopPrice)
+                {
+                    this.LogInfo($"[Bar {bar}] TRAILING-STOP LONG AUSGELÖST bei {_trailingStopPrice:F2} " +
+                                 $"(Low={candle.Low:F2})");
+                    ClosePositionByTrailingStop();
+                }
+            }
+            else
+            {
+                // Short: Trail-Stop nachziehen wenn Preis fällt
+                decimal newTrailStop = candle.Low + trailDist;
+                if (newTrailStop < _trailingStopPrice)
+                {
+                    decimal oldStop = _trailingStopPrice;
+                    _trailingStopPrice = newTrailStop;
+                    this.LogInfo($"[Bar {bar}] TRAILING-STOP SHORT nachgezogen: " +
+                                 $"{oldStop:F2} → {_trailingStopPrice:F2} (Low={candle.Low:F2})");
+                }
+
+                // Prüfe ob Trailing-Stop ausgelöst wurde
+                if (candle.High >= _trailingStopPrice)
+                {
+                    this.LogInfo($"[Bar {bar}] TRAILING-STOP SHORT AUSGELÖST bei {_trailingStopPrice:F2} " +
+                                 $"(High={candle.High:F2})");
+                    ClosePositionByTrailingStop();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            this.LogError($"[Bar {bar}] FEHLER in UpdateTrailingStop", ex);
+        }
+    }
+
+    /// <summary>
+    /// Schliesst die Position wenn Trailing-Stop ausgelöst wird.
+    /// Cancelt alle bestehenden Orders und sendet Market-Exit.
+    /// </summary>
+    private void ClosePositionByTrailingStop()
+    {
+        CancelAllActiveOrders();
+
+        var exitDirection = _isLongPosition ? OrderDirections.Sell : OrderDirections.Buy;
+        int qty = (int)Math.Abs(CurrentPosition);
+        if (qty <= 0) qty = MyQuantity;
+
+        OpenOrder(new Order
+        {
+            Portfolio = Portfolio,
+            Security = Security,
+            Direction = exitDirection,
+            Type = OrderTypes.Market,
+            QuantityToFill = qty
+        });
+
+        _trailingStopPrice = 0;
+        this.LogInfo($"TRAILING-STOP EXIT: {(exitDirection == OrderDirections.Sell ? "SELL" : "BUY")} " +
+                     $"Qty={qty} Market");
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -623,6 +948,8 @@ public class LucidVwapEliteV14 : ChartStrategy
 
             _sessionHigh = decimal.MinValue;
             _sessionLow = decimal.MaxValue;
+            _sessionHighHitCount = 0;
+            _sessionLowHitCount = 0;
             _ibHigh = decimal.MinValue;
             _ibLow = decimal.MaxValue;
             _ibComplete = false;

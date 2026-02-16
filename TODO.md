@@ -41,16 +41,16 @@
 ### 2. Liquidity Detection (Mikro-Analyse)
 - [x] Liquidity Sweep erkennen (Preis durchbricht High/Low, kommt sofort zurück)
 - [x] Stops über Highs / unter Lows identifizieren (Swing-Punkte)
-- [ ] Thin Books / Low Volume Nodes erkennen (dünne Stellen im Orderbook)
-- [ ] Poor High / Poor Low erkennen (Single-Print-Extremes)
+- [x] Thin Books / Low Volume Nodes erkennen (LVN im Vortages-Profil, ±5 Ticks Suche)
+- [x] Poor High / Poor Low erkennen (Single-Print-Extremes, Hit-Counter ≤ 1)
 - [x] Parameter: `SweepLookback` (Bars), `SweepThresholdTicks`, `LVN_Threshold`
 
 ### 3. Orderflow-basierte Entry-Trigger (statt Indikator-Signal)
 - [x] Liquidity Sweep als Vorbedingung (Markt holt erst Liquidität)
 - [x] Absorption erkennen (hohes Volumen, geringer Preisfortschritt → Ablehnung)
 - [x] Delta Flip erkennen (Delta dreht Vorzeichen nach Sweep → Richtungswechsel)
-- [ ] Failed Continuation erkennen (Breakout-Versuch scheitert, Preis kommt zurück)
-- [x] Parameter: `AbsorptionMinVol`, `AbsorptionMaxRange`, `DeltaFlipBars`
+- [x] Failed Continuation erkennen (Breakout scheitert innerhalb FailedContBars)
+- [x] Parameter: `AbsorptionMinVol`, `AbsorptionMaxRange`, `DeltaFlipBars`, `FailedContBars`
 
 ### 4. Kombinierte Entry-Logik (ALLE Bedingungen gleichzeitig)
 - [x] Long: Preis < VAL → Sweep unter Low → Absorption → Delta Flip bullish
@@ -65,10 +65,10 @@
 - [x] Bestehende Parameter beibehalten (SL/TP/MaxTrades/DailyLoss/Quantity etc.)
 
 ## Erweiterungen (Backlog)
-- [ ] Thin Books / Low Volume Nodes (LVN) im Profil erkennen
-- [ ] Poor High / Poor Low (Single-Print-Extremes) erkennen
-- [ ] Failed Continuation als zusätzlicher Orderflow-Trigger
-- [ ] Trailing-Stop Option
+- [x] Thin Books / Low Volume Nodes (LVN) im Profil erkennen ✅
+- [x] Poor High / Poor Low (Single-Print-Extremes) erkennen ✅
+- [x] Failed Continuation als zusätzlicher Orderflow-Trigger ✅
+- [x] Trailing-Stop Option (ATR-basiert, nachziehend) ✅
 - [ ] Multi-Timeframe Bestätigung
 
 ## Testing

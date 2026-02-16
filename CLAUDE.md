@@ -90,17 +90,27 @@ Ecng.Serialization.dll       ← Transitive Abhängigkeit
 
 ## V15 Signal-Logik (ALLE Bedingungen gleichzeitig)
 
-### Long-Entry
+### Long-Entry (Pflicht-Bedingungen)
 1. Preis < VAL (Value Area Low vom Vortag) → Markt ist "billig"
 2. Liquidity Sweep unter Swing-Low erkannt (Wick durch, Close zurück)
 3. Absorption (hohes Vol, kleine Range) → Markt lehnt Level ab
 4. Delta Flip bullish (Delta dreht von negativ zu positiv)
 
-### Short-Entry
+### Short-Entry (Pflicht-Bedingungen)
 1. Preis > VAH (Value Area High vom Vortag) → Markt ist "teuer"
 2. Liquidity Sweep über Swing-High erkannt (Wick durch, Close zurück)
 3. Absorption (hohes Vol, kleine Range) → Markt lehnt Level ab
 4. Delta Flip bearish (Delta dreht von positiv zu negativ)
+
+### Bonus-Bestätigungen (stärken Signal, blockieren nicht)
+- **LVN (Low Volume Node):** Preis nahe dünn gehandeltem Level im Vortages-Profil (< LVN_Threshold % Durchschnittsvol)
+- **Poor High/Low:** Session-Extreme mit nur 1 Touch (Single Print) → unvollständige Auktion
+- **Failed Continuation:** Breakout-Versuch scheitert innerhalb FailedContBars → Preis kommt zurück
+
+### Trailing-Stop (optional)
+- ATR-basiert mit `TrailingStopAtrMult` Abstand
+- Wird nachgezogen wenn Preis sich in Trade-Richtung bewegt
+- Market-Exit wenn Trailing-Stop ausgelöst wird
 
 ## Kritische Regeln
 
@@ -113,7 +123,7 @@ Ecng.Serialization.dll       ← Transitive Abhängigkeit
 - Try-Catch um `GetCandle()`, `candle.Delta`, Indikator-Zugriffe
 - Code-Struktur: Konstruktor → OnCalculate (Profil/IB/Swings → Filter → Signal → ExecuteTrade) → OnPositionChanged
 
-### Parameter (17 Stück – alle in ATAS UI konfigurierbar)
+### Parameter (21 Stück – alle in ATAS UI konfigurierbar)
 **Trade Management:**
 1. MinVolume (300) – Min Volumen/Kerze
 2. MinAtr (0.6) – Min ATR in Punkten
@@ -139,12 +149,23 @@ Ecng.Serialization.dll       ← Transitive Abhängigkeit
 16. AbsorptionMaxRange (3) – Max Range in Ticks für Absorption
 17. DeltaFlipBars (3) – Lookback Bars für Delta Flip
 
+**Trailing-Stop:**
+18. UseTrailingStop (false) – Trailing-Stop aktivieren
+19. TrailingStopAtrMult (1.5) – ATR Multiplikator für Trailing-Abstand
+
+**Failed Continuation:**
+20. UseFailedContinuation (true) – Failed Continuation Erkennung aktiv
+21. FailedContBars (3) – Lookback Bars für Failed Continuation
+
 ### Logging-Konventionen
 - **ValueArea:** `VALUE AREA berechnet: VAH=x VAL=x VPOC=x`
 - **IB:** `INITIAL BALANCE: High=x Low=x Range=x`
 - **Sweep:** `SWEEP HIGH/LOW erkannt: ...`
-- **Signal:** `SIGNAL LONG/SHORT` + AMT/LIQ/OF Bedingungen
-- **Trade:** `TRADE #x | Entry | SL | TP | Qty | R:R`
+- **LVN:** `LVN erkannt bei x (Vol=y < Threshold=z)`
+- **FailedCont:** `FAILED CONTINUATION BULLISH/BEARISH: ...`
+- **Signal:** `SIGNAL LONG/SHORT` + AMT/LIQ/OF Bedingungen + Bonus-Count
+- **Trade:** `TRADE #x | Entry | SL | TP | Qty | R:R | TrailStop`
+- **TrailingStop:** `TRAILING-STOP nachgezogen/AUSGELÖST: ...`
 - **Flat:** `FLAT – Tages-PnL: xxx USD`
 - **Error:** `LogError` in Try-Catch-Blöcken
 
