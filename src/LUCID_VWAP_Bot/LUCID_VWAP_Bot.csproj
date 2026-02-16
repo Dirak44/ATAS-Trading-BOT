@@ -10,17 +10,39 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <!-- TODO: ATAS SDK DLL-Referenzen einbinden sobald Pfad bekannt -->
-  <!-- Typische ATAS SDK DLLs: -->
-  <!--
+  <PropertyGroup>
+    <ATASPath>C:\Program Files (x86)\ATAS Platform</ATASPath>
+  </PropertyGroup>
+
   <ItemGroup>
-    <Reference Include="OFT.Platform.SDK">
-      <HintPath>..\..\lib\OFT.Platform.SDK.dll</HintPath>
+    <Reference Include="ATAS.Strategies">
+      <HintPath>$(ATASPath)\ATAS.Strategies.dll</HintPath>
+      <Private>false</Private>
     </Reference>
     <Reference Include="ATAS.Indicators">
-      <HintPath>..\..\lib\ATAS.Indicators.dll</HintPath>
+      <HintPath>$(ATASPath)\ATAS.Indicators.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="ATAS.Indicators.Technical">
+      <HintPath>$(ATASPath)\ATAS.Indicators.Technical.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="StockSharp.BusinessEntities">
+      <HintPath>$(ATASPath)\StockSharp.BusinessEntities.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="StockSharp.Messages">
+      <HintPath>$(ATASPath)\StockSharp.Messages.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="OFT.Attributes">
+      <HintPath>$(ATASPath)\OFT.Attributes.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="ATAS.DataFeedsCore">
+      <HintPath>$(ATASPath)\ATAS.DataFeedsCore.dll</HintPath>
+      <Private>false</Private>
     </Reference>
   </ItemGroup>
-  -->
 
 </Project>
