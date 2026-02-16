@@ -39,6 +39,60 @@ ATAS SDK DLLs werden aus `C:\Program Files (x86)\ATAS Platform` referenziert.
 5. Parameter im Strategy-Panel anpassen
 6. "Start" klicken → Bot handelt automatisch in der RTH-Session
 
+## ATAS SDK Build-Wissen (ermittelt 16.02.2026)
+
+### DLL-Referenzen die benötigt werden
+ATAS-Installation: `C:\Program Files (x86)\ATAS Platform`
+```
+ATAS.Strategies.dll       ← ChartStrategy Basisklasse
+ATAS.Indicators.dll       ← VWAP, EMA, ATR + ParameterAttribute (VERALTET!)
+ATAS.Indicators.Technical.dll ← Technische Indikatoren
+ATAS.Types.dll            ← Basis-Typen
+ATAS.DataFeedsCore.dll    ← Datafeed-Typen
+Utils.Common.dll          ← ParameterAttribute lebt HIER (von OFT referenziert)
+OFT.Attributes.dll        ← [Parameter] Attribut (RICHTIG, OFT.Attributes.ParameterAttribute)
+OFT.Core.dll              ← Core-Typen
+StockSharp.BusinessEntities.dll ← Security, Portfolio, Position, Order
+StockSharp.Messages.dll   ← Sides, OrderTypes
+StockSharp.Logging.dll    ← Logging Extensions
+```
+
+### Bekannte Build-Probleme & Lösungen
+
+#### 1. `[Parameter]` Ambiguity
+**Problem:** `CS0104: "Parameter" ist mehrdeutig zwischen OFT.Attributes.ParameterAttribute und ATAS.Indicators.ParameterAttribute`
+**Lösung:** `ATAS.Indicators.ParameterAttribute` ist als `[Obsolete]` markiert mit Hinweis "Use OFT.Attributes.ParameterAttribute instead".
+→ Entweder `using OFT.Attributes;` und NICHT `using ATAS.Indicators;` zusammen verwenden,
+→ ODER vollqualifiziert: `[OFT.Attributes.Parameter]`
+→ ODER mit `using Parameter = OFT.Attributes.ParameterAttribute;` alias
+
+#### 2. `ValueAreaPercent` Property-Hiding (CS0108)
+**Problem:** `ChartStrategy` hat bereits eine Property `ValueAreaPercent`
+**Lösung:** Property umbenannt zu `VA_Percent`
+
+#### 3. `OnPositionChanged(Position)` – CS0115
+**Problem:** `override` passt nicht – Methode existiert möglicherweise nicht in der Basisklasse
+**Status:** OFFEN – Signatur von ChartStrategy.OnPositionChanged muss noch ermittelt werden
+- Reflection scheitert an Assembly-Abhängigkeiten
+- Binär-Suche in DLL findet "OnPositionChanged" NICHT in ATAS.Strategies.dll
+- **TODO:** ATAS Online-Doku/API-Referenz oder Beispiel-Strategies prüfen
+- **Möglichkeit:** Event-basiert statt override (z.B. `PositionChanged += handler`)
+- **Möglichkeit:** Methode heißt anders oder kommt aus einem Interface
+
+#### 4. WindowsBase Versions-Warnung (MSB3277)
+**Problem:** Konflikt WindowsBase 4.0 vs 8.0
+**Status:** Nur Warning, nicht blockierend. Kann ignoriert werden.
+
+### ATAS DLLs im Ordner (Referenz)
+```
+ATAS.Strategies.dll, ATAS.Indicators.dll, ATAS.Indicators.Technical.dll,
+ATAS.Indicators.Other.dll, ATAS.Types.dll, ATAS.DataFeedsCore.dll,
+OFT.Attributes.dll, OFT.Core.dll, Utils.Common.dll,
+StockSharp.BusinessEntities.dll, StockSharp.Messages.dll, StockSharp.Logging.dll,
+StockSharp.Algo.dll, StockSharp.Community.dll, StockSharp.Configuration.dll,
+StockSharp.Fix.dll, StockSharp.Licensing.dll, StockSharp.Localization.dll
+```
+
 ## V15 Signal-Logik (ALLE Bedingungen gleichzeitig)
 
 ### Long-Entry
@@ -77,7 +131,7 @@ ATAS SDK DLLs werden aus `C:\Program Files (x86)\ATAS Platform` referenziert.
 9. MinRR (1.5) – Min Risk:Reward Ratio
 
 **Auction Market Theory:**
-10. ValueAreaPercent (70%) – Value Area Prozent
+10. VA_Percent (70%) – Value Area Prozent (umbenannt wegen Basis-Property)
 11. IB_Minutes (30) – Initial Balance Dauer
 
 **Liquidity Detection:**

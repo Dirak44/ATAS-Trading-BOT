@@ -6,7 +6,6 @@ using System.ComponentModel;
 using ATAS.Indicators;
 using ATAS.Indicators.Technical;
 using ATAS.Strategies.Chart;
-using OFT.Attributes;
 using StockSharp.BusinessEntities;
 using StockSharp.Messages;
 
@@ -80,7 +79,7 @@ public class LucidVwapEliteV14 : ChartStrategy
 
     [Parameter]
     [DisplayName("Value Area %")]
-    public decimal ValueAreaPercent { get; set; } = 70m;
+    public decimal VA_Percent { get; set; } = 70m;
 
     [Parameter]
     [DisplayName("Initial Balance Minuten")]
@@ -354,8 +353,8 @@ public class LucidVwapEliteV14 : ChartStrategy
         // VPOC = Preis-Level mit höchstem Volumen
         _prevVPOC = _prevProfile.MaxBy(kv => kv.Value).Key;
 
-        // Value Area: Von VPOC aus expandieren bis ValueAreaPercent% des Volumens
-        decimal targetVol = totalVol * (ValueAreaPercent / 100m);
+        // Value Area: Von VPOC aus expandieren bis VA_Percent% des Volumens
+        decimal targetVol = totalVol * (VA_Percent / 100m);
         decimal accumulatedVol = _prevProfile[_prevVPOC];
 
         var sortedLevels = _prevProfile.Keys.OrderBy(p => p).ToList();

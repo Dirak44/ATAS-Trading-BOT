@@ -27,6 +27,26 @@
       <HintPath>$(ATASPath)\ATAS.Indicators.Technical.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="ATAS.Types">
+      <HintPath>$(ATASPath)\ATAS.Types.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="ATAS.DataFeedsCore">
+      <HintPath>$(ATASPath)\ATAS.DataFeedsCore.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Utils.Common">
+      <HintPath>$(ATASPath)\Utils.Common.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="OFT.Attributes">
+      <HintPath>$(ATASPath)\OFT.Attributes.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="OFT.Core">
+      <HintPath>$(ATASPath)\OFT.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="StockSharp.BusinessEntities">
       <HintPath>$(ATASPath)\StockSharp.BusinessEntities.dll</HintPath>
       <Private>false</Private>
@@ -35,12 +55,8 @@
       <HintPath>$(ATASPath)\StockSharp.Messages.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <Reference Include="OFT.Attributes">
-      <HintPath>$(ATASPath)\OFT.Attributes.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="ATAS.DataFeedsCore">
-      <HintPath>$(ATASPath)\ATAS.DataFeedsCore.dll</HintPath>
+    <Reference Include="StockSharp.Logging">
+      <HintPath>$(ATASPath)\StockSharp.Logging.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>
