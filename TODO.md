@@ -1,4 +1,4 @@
-# TODO – LUCID_VWAP_ELITE_V14
+# TODO – LUCID_VWAP_ELITE_V15
 
 ## Projekt-Setup
 - [x] GitHub Repo erstellen (öffentlich)
@@ -12,7 +12,7 @@
 - [x] Alle Platzhalter durch echte SDK-Aufrufe ersetzt (ChartStrategy, Indikatoren, Orders, Logging)
 - [ ] `dotnet build` erfolgreich durchführen (erfordert ATAS Installation auf Build-Maschine)
 
-## Strategy-Implementierung (V14 – Basis)
+## Strategy-Implementierung (V14 – Basis) ✅
 - [x] Konstruktor + Indikatoren (VWAP, EMA 20, ATR 14)
 - [x] 11 Parameter mit `[Parameter]`-Attributen definieren
 - [x] Filter-Logik (RTH 15:30–21:00, Volumen, ATR, Position, MaxTrades, DailyLoss, News)
@@ -31,41 +31,43 @@
 > Parameter sollen auf eigenen Daten eingestellt, aber in ATAS UI änderbar sein.
 
 ### 1. Auction Market Theory (Makro-Kontext)
-- [ ] Value Area berechnen (VAH, VAL, VPOC) aus Vortages-Profil
-- [ ] Initial Balance berechnen (erste 30min RTH High/Low)
-- [ ] Session High/Low tracken
-- [ ] Filter: Trade nur AUSSERHALB Value Area (Preis > VAH oder < VAL)
-- [ ] Erkennung: Markt ist "teuer" (über VAH) oder "billig" (unter VAL)
-- [ ] Parameter: `ValueAreaPercent` (default 70%), `IB_Minutes` (default 30)
+- [x] Value Area berechnen (VAH, VAL, VPOC) aus Vortages-Profil
+- [x] Initial Balance berechnen (erste 30min RTH High/Low)
+- [x] Session High/Low tracken
+- [x] Filter: Trade nur AUSSERHALB Value Area (Preis > VAH oder < VAL)
+- [x] Erkennung: Markt ist "teuer" (über VAH) oder "billig" (unter VAL)
+- [x] Parameter: `ValueAreaPercent` (default 70%), `IB_Minutes` (default 30)
 
 ### 2. Liquidity Detection (Mikro-Analyse)
-- [ ] Liquidity Sweep erkennen (Preis durchbricht High/Low, kommt sofort zurück)
-- [ ] Stops über Highs / unter Lows identifizieren (Swing-Punkte)
+- [x] Liquidity Sweep erkennen (Preis durchbricht High/Low, kommt sofort zurück)
+- [x] Stops über Highs / unter Lows identifizieren (Swing-Punkte)
 - [ ] Thin Books / Low Volume Nodes erkennen (dünne Stellen im Orderbook)
 - [ ] Poor High / Poor Low erkennen (Single-Print-Extremes)
-- [ ] Parameter: `SweepLookback` (Bars), `SweepThresholdTicks`, `LVN_Threshold`
+- [x] Parameter: `SweepLookback` (Bars), `SweepThresholdTicks`, `LVN_Threshold`
 
 ### 3. Orderflow-basierte Entry-Trigger (statt Indikator-Signal)
-- [ ] Liquidity Sweep als Vorbedingung (Markt holt erst Liquidität)
-- [ ] Absorption erkennen (hohes Volumen, geringer Preisfortschritt → Ablehnung)
-- [ ] Delta Flip erkennen (Delta dreht Vorzeichen nach Sweep → Richtungswechsel)
+- [x] Liquidity Sweep als Vorbedingung (Markt holt erst Liquidität)
+- [x] Absorption erkennen (hohes Volumen, geringer Preisfortschritt → Ablehnung)
+- [x] Delta Flip erkennen (Delta dreht Vorzeichen nach Sweep → Richtungswechsel)
 - [ ] Failed Continuation erkennen (Breakout-Versuch scheitert, Preis kommt zurück)
-- [ ] Parameter: `AbsorptionMinVol`, `AbsorptionMaxRange`, `DeltaFlipBars`
+- [x] Parameter: `AbsorptionMinVol`, `AbsorptionMaxRange`, `DeltaFlipBars`
 
 ### 4. Kombinierte Entry-Logik (ALLE Bedingungen gleichzeitig)
-- [ ] Long: Preis < VAL → Sweep unter Low → Absorption → Delta Flip bullish
-- [ ] Short: Preis > VAH → Sweep über High → Absorption → Delta Flip bearish
-- [ ] Kein Trade wenn nur Teil-Bedingungen erfüllt
-- [ ] Alte V14 VWAP/EMA-Logik durch neue AMT+Liquidity+Orderflow-Logik ersetzen
+- [x] Long: Preis < VAL → Sweep unter Low → Absorption → Delta Flip bullish
+- [x] Short: Preis > VAH → Sweep über High → Absorption → Delta Flip bearish
+- [x] Kein Trade wenn nur Teil-Bedingungen erfüllt
+- [x] Alte V14 VWAP/EMA-Logik durch neue AMT+Liquidity+Orderflow-Logik ersetzen
 
 ### 5. Neue Parameter (alle in ATAS UI konfigurierbar)
-- [ ] AMT-Parameter: ValueAreaPercent, IB_Minutes
-- [ ] Liquidity-Parameter: SweepLookback, SweepThresholdTicks, LVN_Threshold
-- [ ] Orderflow-Parameter: AbsorptionMinVol, AbsorptionMaxRange, DeltaFlipBars
-- [ ] Bestehende Parameter beibehalten (SL/TP/MaxTrades/DailyLoss/Quantity etc.)
+- [x] AMT-Parameter: ValueAreaPercent, IB_Minutes
+- [x] Liquidity-Parameter: SweepLookback, SweepThresholdTicks, LVN_Threshold
+- [x] Orderflow-Parameter: AbsorptionMinVol, AbsorptionMaxRange, DeltaFlipBars
+- [x] Bestehende Parameter beibehalten (SL/TP/MaxTrades/DailyLoss/Quantity etc.)
 
 ## Erweiterungen (Backlog)
-- [ ] VWAP Fallback-Implementierung (eigene Session-VWAP Klasse)
+- [ ] Thin Books / Low Volume Nodes (LVN) im Profil erkennen
+- [ ] Poor High / Poor Low (Single-Print-Extremes) erkennen
+- [ ] Failed Continuation als zusätzlicher Orderflow-Trigger
 - [ ] Trailing-Stop Option
 - [ ] Multi-Timeframe Bestätigung
 
