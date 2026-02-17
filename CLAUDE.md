@@ -82,11 +82,10 @@ Ecng.Serialization.dll       ← Transitive Abhängigkeit
 | LogError | `this.LogError("msg", ex)` | ~~this.LogError($"msg: {ex.Message}")~~ |
 | Position | `OnCurrentPositionChanged()` (kein Parameter) | ~~OnPositionChanged(Position)~~ |
 | VWAP | `new VWAP()` (Default = Daily) | ~~Type = VWAPPeriodType.Daily~~ |
-| Stop | `Stop()` (deprecated) oder `StopAsync()` | |
+| Stop | `StopAsync()` | ~~Stop()~~ (deprecated) |
 
 ### Bekannte Warnings (ignorierbar)
 1. **WindowsBase** Versionskonflikt 4.0 vs 8.0 – nur Warning
-2. **Stop()** deprecated → `StopAsync()` empfohlen
 
 ## V15 Signal-Logik (ALLE Bedingungen gleichzeitig)
 
@@ -95,12 +94,14 @@ Ecng.Serialization.dll       ← Transitive Abhängigkeit
 2. Liquidity Sweep unter Swing-Low erkannt (Wick durch, Close zurück)
 3. Absorption (hohes Vol, kleine Range) → Markt lehnt Level ab
 4. Delta Flip bullish (Delta dreht von negativ zu positiv)
+5. Multi-TF: EMA Slow steigend (wenn UseMultiTF aktiv)
 
 ### Short-Entry (Pflicht-Bedingungen)
 1. Preis > VAH (Value Area High vom Vortag) → Markt ist "teuer"
 2. Liquidity Sweep über Swing-High erkannt (Wick durch, Close zurück)
 3. Absorption (hohes Vol, kleine Range) → Markt lehnt Level ab
 4. Delta Flip bearish (Delta dreht von positiv zu negativ)
+5. Multi-TF: EMA Slow fallend (wenn UseMultiTF aktiv)
 
 ### Bonus-Bestätigungen (stärken Signal, blockieren nicht)
 - **LVN (Low Volume Node):** Preis nahe dünn gehandeltem Level im Vortages-Profil (< LVN_Threshold % Durchschnittsvol)
@@ -123,7 +124,7 @@ Ecng.Serialization.dll       ← Transitive Abhängigkeit
 - Try-Catch um `GetCandle()`, `candle.Delta`, Indikator-Zugriffe
 - Code-Struktur: Konstruktor → OnCalculate (Profil/IB/Swings → Filter → Signal → ExecuteTrade) → OnPositionChanged
 
-### Parameter (21 Stück – alle in ATAS UI konfigurierbar)
+### Parameter (23 Stück – alle in ATAS UI konfigurierbar)
 **Trade Management:**
 1. MinVolume (300) – Min Volumen/Kerze
 2. MinAtr (0.6) – Min ATR in Punkten
@@ -157,13 +158,18 @@ Ecng.Serialization.dll       ← Transitive Abhängigkeit
 20. UseFailedContinuation (true) – Failed Continuation Erkennung aktiv
 21. FailedContBars (3) – Lookback Bars für Failed Continuation
 
+**Multi-Timeframe:**
+22. UseMultiTF (true) – Multi-TF Trend-Filter aktiv
+23. SlowEmaPeriod (50) – Periode der Slow EMA für Trendrichtung
+
 ### Logging-Konventionen
 - **ValueArea:** `VALUE AREA berechnet: VAH=x VAL=x VPOC=x`
 - **IB:** `INITIAL BALANCE: High=x Low=x Range=x`
 - **Sweep:** `SWEEP HIGH/LOW erkannt: ...`
 - **LVN:** `LVN erkannt bei x (Vol=y < Threshold=z)`
 - **FailedCont:** `FAILED CONTINUATION BULLISH/BEARISH: ...`
-- **Signal:** `SIGNAL LONG/SHORT` + AMT/LIQ/OF Bedingungen + Bonus-Count
+- **MultiTF:** `MTF: MultiTF=true/false Bullish=... Bearish=... EMA50=x`
+- **Signal:** `SIGNAL LONG/SHORT` + AMT/LIQ/OF Bedingungen + Bonus-Count + MTF
 - **Trade:** `TRADE #x | Entry | SL | TP | Qty | R:R | TrailStop`
 - **TrailingStop:** `TRAILING-STOP nachgezogen/AUSGELÖST: ...`
 - **Flat:** `FLAT – Tages-PnL: xxx USD`

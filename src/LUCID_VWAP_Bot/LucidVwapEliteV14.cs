@@ -35,6 +35,7 @@ public class LucidVwapEliteV14 : ChartStrategy
 
     private readonly VWAP _vwap = new();
     private readonly EMA _ema = new() { Period = 20 };
+    private readonly EMA _emaSlow = new() { Period = 50 };
     private readonly ATR _atr = new() { Period = 14 };
 
     // ═══════════════════════════════════════════════════════════════
@@ -146,6 +147,18 @@ public class LucidVwapEliteV14 : ChartStrategy
     public int FailedContBars { get; set; } = 3;
 
     // ═══════════════════════════════════════════════════════════════
+    // PARAMETER – Multi-Timeframe Bestätigung
+    // ═══════════════════════════════════════════════════════════════
+
+    [Parameter]
+    [DisplayName("Multi-TF Trend-Filter aktiv")]
+    public bool UseMultiTF { get; set; } = true;
+
+    [Parameter]
+    [DisplayName("Slow EMA Periode")]
+    public int SlowEmaPeriod { get; set; } = 50;
+
+    // ═══════════════════════════════════════════════════════════════
     // INTERNE FELDER – Trade Management
     // ═══════════════════════════════════════════════════════════════
 
@@ -193,6 +206,7 @@ public class LucidVwapEliteV14 : ChartStrategy
 
     private decimal _trailingStopPrice;
     private bool _isLongPosition;
+    private decimal _entryPrice;
 
     // ═══════════════════════════════════════════════════════════════
     // KONSTRUKTOR
@@ -202,6 +216,7 @@ public class LucidVwapEliteV14 : ChartStrategy
     {
         Add(_vwap);
         Add(_ema);
+        Add(_emaSlow);
         Add(_atr);
     }
 
@@ -214,6 +229,10 @@ public class LucidVwapEliteV14 : ChartStrategy
         try
         {
             var candle = GetCandle(bar);
+
+            // Slow EMA Periode synchronisieren (falls User in UI ändert)
+            if (_emaSlow.Period != SlowEmaPeriod)
+                _emaSlow.Period = SlowEmaPeriod;
 
             // Tages-Reset (inkl. Value Area Rotation)
             ResetDailyIfNeeded(candle.Time);
@@ -263,7 +282,7 @@ public class LucidVwapEliteV14 : ChartStrategy
             if (_dailyPnL <= -MaxDailyLossUSD)
             {
                 this.LogInfo($"AUTO-STOP – Tagesverlust {_dailyPnL:F2} USD");
-                Stop();
+                _ = StopAsync();
                 return;
             }
 
@@ -337,13 +356,25 @@ public class LucidVwapEliteV14 : ChartStrategy
             bool failedContBullish = DetectFailedContinuation(bar, checkBullish: true);
             bool failedContBearish = DetectFailedContinuation(bar, checkBullish: false);
 
+            // Multi-TF Trend-Filter: EMA Slow Richtung bestimmt übergeordneten Trend
+            bool multiTfBullish = true;
+            bool multiTfBearish = true;
+            if (UseMultiTF && bar >= SlowEmaPeriod + 1)
+            {
+                decimal emaSlowCurr = _emaSlow[bar];
+                decimal emaSlowPrev = _emaSlow[bar - 1];
+                multiTfBullish = emaSlowCurr > emaSlowPrev; // EMA steigend → bullish
+                multiTfBearish = emaSlowCurr < emaSlowPrev; // EMA fallend → bearish
+            }
+
             // ═══════════════════════════════════════
             // KOMBINIERTE ENTRY-LOGIK
             // ═══════════════════════════════════════
 
             // Basis-Signal: AMT + Sweep + Absorption + Delta Flip (alle Pflicht)
-            bool longSignal = belowVAL && sweepLow && absorption && deltaFlipBullish;
-            bool shortSignal = aboveVAH && sweepHigh && absorption && deltaFlipBearish;
+            // Multi-TF: blockiert Trades gegen den übergeordneten Trend (wenn aktiv)
+            bool longSignal = belowVAL && sweepLow && absorption && deltaFlipBullish && multiTfBullish;
+            bool shortSignal = aboveVAH && sweepHigh && absorption && deltaFlipBearish && multiTfBearish;
 
             // Bonus-Bestätigungen: LVN, Poor High/Low, Failed Continuation
             // stärken das Signal (für Logging/Analyse), blockieren es aber nicht
@@ -360,17 +391,21 @@ public class LucidVwapEliteV14 : ChartStrategy
             this.LogInfo($"[Bar {bar}] OF: Absorption={absorption} DeltaFlipBull={deltaFlipBullish} " +
                          $"DeltaFlipBear={deltaFlipBearish} FailedContBull={failedContBullish} " +
                          $"FailedContBear={failedContBearish}");
+            this.LogInfo($"[Bar {bar}] MTF: MultiTF={UseMultiTF} Bullish={multiTfBullish} Bearish={multiTfBearish} " +
+                         $"EMA{SlowEmaPeriod}={_emaSlow[bar]:F2}");
 
             if (longSignal)
             {
                 this.LogInfo($"[Bar {bar}] *** SIGNAL LONG *** Sweep+Absorption+DeltaFlip unter VAL " +
-                             $"(+{longConfirmations} Bonus: LVN={nearLVN} PoorLow={poorLow} FailedCont={failedContBullish})");
+                             $"(+{longConfirmations} Bonus: LVN={nearLVN} PoorLow={poorLow} FailedCont={failedContBullish}" +
+                             $" | MTF=bullish)");
                 ExecuteTrade(bar, isLong: true, candle.Close, atrValue);
             }
             else if (shortSignal)
             {
                 this.LogInfo($"[Bar {bar}] *** SIGNAL SHORT *** Sweep+Absorption+DeltaFlip über VAH " +
-                             $"(+{shortConfirmations} Bonus: LVN={nearLVN} PoorHigh={poorHigh} FailedCont={failedContBearish})");
+                             $"(+{shortConfirmations} Bonus: LVN={nearLVN} PoorHigh={poorHigh} FailedCont={failedContBearish}" +
+                             $" | MTF=bearish)");
                 ExecuteTrade(bar, isLong: false, candle.Close, atrValue);
             }
         }
@@ -781,6 +816,7 @@ public class LucidVwapEliteV14 : ChartStrategy
             _orderPending = true;
             _tradesToday++;
             _isLongPosition = isLong;
+            _entryPrice = entryPrice;
 
             // Trailing-Stop initialisieren (falls aktiv)
             if (UseTrailingStop)
@@ -813,6 +849,42 @@ public class LucidVwapEliteV14 : ChartStrategy
     {
         if (Math.Abs(CurrentPosition) < 0.001m)
         {
+            // PnL schätzen basierend auf Entry-Preis und letztem Bar-Close
+            if (_entryPrice > 0)
+            {
+                try
+                {
+                    var lastBar = CurrentBar - 1;
+                    if (lastBar >= 0)
+                    {
+                        var candle = GetCandle(lastBar);
+                        var tickSize = Security.TickSize;
+                        if (tickSize <= 0) tickSize = 0.25m;
+
+                        // Tick-Wert: z.B. ES = $12.50/Tick, NQ = $5.00/Tick
+                        // Approximation: 1 Punkt = (1/tickSize) Ticks * $12.50 für ES
+                        // Da wir den exakten Tick-Wert nicht kennen, berechnen wir
+                        // PnL in Punkten und loggen beides
+                        decimal priceDiff = _isLongPosition
+                            ? candle.Close - _entryPrice
+                            : _entryPrice - candle.Close;
+                        decimal pnlTicks = priceDiff / tickSize;
+
+                        // Tick-Wert Approximation (konservativ: $12.50 für ES Micro)
+                        decimal tickValue = 12.50m;
+                        decimal estimatedPnL = pnlTicks * tickValue * MyQuantity;
+
+                        UpdateDailyPnL(estimatedPnL);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    this.LogError("[PnL] FEHLER bei PnL-Berechnung", ex);
+                }
+
+                _entryPrice = 0;
+            }
+
             _orderPending = false;
             _trailingStopPrice = 0;
             CancelAllActiveOrders();
@@ -992,7 +1064,7 @@ public class LucidVwapEliteV14 : ChartStrategy
         if (_dailyPnL <= -MaxDailyLossUSD)
         {
             this.LogInfo($"!!! AUTO-STOP !!! Tagesverlust {_dailyPnL:F2} USD >= Limit {MaxDailyLossUSD} USD");
-            Stop();
+            _ = StopAsync();
         }
     }
 }

@@ -64,12 +64,17 @@
 - [x] Orderflow-Parameter: AbsorptionMinVol, AbsorptionMaxRange, DeltaFlipBars
 - [x] Bestehende Parameter beibehalten (SL/TP/MaxTrades/DailyLoss/Quantity etc.)
 
-## Erweiterungen (Backlog)
+## Erweiterungen (Backlog) ✅
 - [x] Thin Books / Low Volume Nodes (LVN) im Profil erkennen ✅
 - [x] Poor High / Poor Low (Single-Print-Extremes) erkennen ✅
 - [x] Failed Continuation als zusätzlicher Orderflow-Trigger ✅
 - [x] Trailing-Stop Option (ATR-basiert, nachziehend) ✅
-- [ ] Multi-Timeframe Bestätigung
+- [x] Multi-Timeframe Bestätigung (EMA Slow Trend-Filter) ✅
+
+## Bug-Fixes (17.02.2026)
+- [x] `Stop()` → `StopAsync()` (deprecation warnings behoben) ✅
+- [x] PnL Tracking: `UpdateDailyPnL()` wird jetzt in `OnCurrentPositionChanged()` aufgerufen ✅
+- [x] `_entryPrice` Feld hinzugefügt für korrekte PnL-Berechnung beim Flat-Werden ✅
 
 ## Testing
 - [ ] 2 Wochen Replay-Testing in ATAS
