@@ -175,6 +175,32 @@ Ecng.Serialization.dll       ← Transitive Abhängigkeit
 - **Flat:** `FLAT – Tages-PnL: xxx USD`
 - **Error:** `LogError` in Try-Catch-Blöcken
 
+## Funktions-Übersicht (LucidVwapEliteV14.cs)
+
+| Funktion | Beschreibung |
+|----------|-------------|
+| `OnCalculate(bar, value)` | Hauptlogik pro Bar: baut Profil/IB/Swings auf, prüft Filter-Kaskade, löst bei V15-Signal Trade aus |
+| `UpdateVolumeProfile(candle)` | Akkumuliert Volumen pro Tick-Level im heutigen Profil |
+| `CalculateValueArea()` | Berechnet VAH, VAL, VPOC aus dem Vortages-Profil (CME-Algorithmus) |
+| `UpdateSessionHighLow(candle)` | Trackt Session High/Low in der RTH und zählt Berührungen (Poor High/Low) |
+| `UpdateInitialBalance(candle)` | Berechnet Initial Balance (High/Low der ersten IB_Minutes nach RTH-Open) |
+| `UpdateSwingPoints(bar)` | Erkennt 3-Bar-Pivot Swing-Highs/Lows für Liquidity-Sweep-Erkennung |
+| `IsNearLVN(price, tickSize)` | Prüft ob Preis nahe einem Low Volume Node im Vortages-Profil liegt |
+| `IsPoorHigh()` | True wenn Session-High nur 1x berührt wurde (Single Print, unvollständige Auktion) |
+| `IsPoorLow()` | True wenn Session-Low nur 1x berührt wurde (Single Print, unvollständige Auktion) |
+| `DetectFailedContinuation(bar, checkBullish)` | Erkennt gescheiterte Breakouts die innerhalb FailedContBars zurückkehren |
+| `DetectAbsorption(candle, tickSize)` | Erkennt Absorption: hohes Volumen bei kleiner Range (Ablehnung) |
+| `DetectDeltaFlip(bar, out bullish, out bearish)` | Erkennt Vorzeichen-Wechsel im Delta innerhalb DeltaFlipBars |
+| `ExecuteTrade(bar, isLong, entryPrice, atrValue)` | Sendet Entry/SL/TP Orders und initialisiert Trailing-Stop |
+| `OnCurrentPositionChanged()` | Berechnet PnL beim Flat-Werden, cancelt offene Orders |
+| `OnStopping()` | Cancelt alle aktiven Orders beim Strategy-Stop |
+| `CancelAllActiveOrders()` | Iteriert Orders und cancelt alle mit State=Active |
+| `UpdateTrailingStop(bar, candle)` | Zieht Stop-Loss nach bei Preisbewegung in Trade-Richtung, löst Market-Exit aus |
+| `ClosePositionByTrailingStop()` | Cancelt Orders und sendet Market-Exit bei Trailing-Stop Auslösung |
+| `ResetDailyIfNeeded(candleTime)` | Tages-Reset: rotiert Profil → Value Area, setzt PnL/Trades auf Null |
+| `IsNewsTime(time)` | Prüft ob News-Fenster aktiv ist (08:00–08:45 oder 14:00–14:45 EST) |
+| `UpdateDailyPnL(realizedPnL)` | Addiert Trade-PnL zum Tages-PnL, stoppt Strategy bei MaxDailyLossUSD |
+
 ## Workflow-Regeln
 1. **Vor jeder Arbeitssession:** CLAUDE.md und TODO.md lesen und aktualisieren
 2. **Vor Ratelimit:** Commit mit allen aktuellen Änderungen machen

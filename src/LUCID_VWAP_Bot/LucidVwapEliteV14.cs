@@ -224,6 +224,7 @@ public class LucidVwapEliteV14 : ChartStrategy
     // HAUPTLOGIK – OnCalculate
     // ═══════════════════════════════════════════════════════════════
 
+    /// Hauptlogik: wird pro Bar aufgerufen – baut Profil/IB/Swings auf, prüft Filter-Kaskade und löst bei V15-Signal einen Trade aus.
     protected override void OnCalculate(int bar, decimal value)
     {
         try
@@ -419,6 +420,7 @@ public class LucidVwapEliteV14 : ChartStrategy
     // AMT – VOLUME PROFILE & VALUE AREA
     // ═══════════════════════════════════════════════════════════════
 
+    /// Akkumuliert Volumen pro Tick-Level im heutigen Profil (Basis für Value Area Berechnung).
     private void UpdateVolumeProfile(IndicatorCandle candle)
     {
         var tickSize = Security.TickSize;
@@ -434,6 +436,7 @@ public class LucidVwapEliteV14 : ChartStrategy
         _todayTotalVolume += candle.Volume;
     }
 
+    /// Berechnet VAH, VAL und VPOC aus dem Vortages-Profil nach dem CME-Algorithmus (VA_Percent vom Volumen um den VPOC).
     private void CalculateValueArea()
     {
         if (_prevProfile.Count == 0) return;
@@ -489,6 +492,7 @@ public class LucidVwapEliteV14 : ChartStrategy
     // AMT – SESSION HIGH/LOW & INITIAL BALANCE
     // ═══════════════════════════════════════════════════════════════
 
+    /// Trackt Session High/Low innerhalb der RTH-Session und zählt wie oft ein Extreme berührt wird (für Poor High/Low).
     private void UpdateSessionHighLow(IndicatorCandle candle)
     {
         var tod = candle.Time.TimeOfDay;
@@ -519,6 +523,7 @@ public class LucidVwapEliteV14 : ChartStrategy
         }
     }
 
+    /// Berechnet die Initial Balance (High/Low der ersten IB_Minutes nach RTH-Open 15:30).
     private void UpdateInitialBalance(IndicatorCandle candle)
     {
         if (_ibComplete) return;
@@ -545,6 +550,7 @@ public class LucidVwapEliteV14 : ChartStrategy
     // LIQUIDITY – SWING-PUNKTE & SWEEP-ERKENNUNG
     // ═══════════════════════════════════════════════════════════════
 
+    /// Erkennt Swing-Highs und Swing-Lows (3-Bar-Pivot) und speichert sie für die Liquidity-Sweep-Erkennung.
     private void UpdateSwingPoints(int bar)
     {
         try
@@ -707,6 +713,7 @@ public class LucidVwapEliteV14 : ChartStrategy
     // ORDERFLOW – ABSORPTION ERKENNUNG
     // ═══════════════════════════════════════════════════════════════
 
+    /// Erkennt Absorption: hohes Volumen bei kleiner Preisrange → Markt lehnt Level ab.
     private bool DetectAbsorption(IndicatorCandle candle, decimal tickSize)
     {
         if (tickSize <= 0) tickSize = 0.25m;
@@ -721,6 +728,7 @@ public class LucidVwapEliteV14 : ChartStrategy
     // ORDERFLOW – DELTA FLIP ERKENNUNG
     // ═══════════════════════════════════════════════════════════════
 
+    /// Erkennt Delta Flip: Delta dreht Vorzeichen (neg→pos = bullish, pos→neg = bearish) innerhalb DeltaFlipBars.
     private void DetectDeltaFlip(int bar, out bool bullish, out bool bearish)
     {
         bullish = false;
@@ -758,6 +766,7 @@ public class LucidVwapEliteV14 : ChartStrategy
     // TRADE EXECUTION (ATAS DataFeedsCore API)
     // ═══════════════════════════════════════════════════════════════
 
+    /// Sendet Entry-Limit, Stop-Loss und Take-Profit Orders an ATAS und initialisiert Trailing-Stop falls aktiv.
     private void ExecuteTrade(int bar, bool isLong, decimal entryPrice, decimal atrValue)
     {
         try
@@ -845,6 +854,7 @@ public class LucidVwapEliteV14 : ChartStrategy
     // POSITION MANAGEMENT
     // ═══════════════════════════════════════════════════════════════
 
+    /// Wird bei Positionsänderung aufgerufen – berechnet PnL beim Flat-Werden und cancelt alle offenen Orders.
     protected override void OnCurrentPositionChanged()
     {
         if (Math.Abs(CurrentPosition) < 0.001m)
@@ -892,11 +902,13 @@ public class LucidVwapEliteV14 : ChartStrategy
         }
     }
 
+    /// Wird beim Stoppen der Strategy aufgerufen – cancelt alle noch aktiven Orders.
     protected override void OnStopping()
     {
         CancelAllActiveOrders();
     }
 
+    /// Iteriert über alle Orders und cancelt jede die noch State=Active hat.
     private void CancelAllActiveOrders()
     {
         foreach (var o in Orders)
@@ -1000,6 +1012,7 @@ public class LucidVwapEliteV14 : ChartStrategy
     // TAGES-RESET (inkl. Value Area Rotation)
     // ═══════════════════════════════════════════════════════════════
 
+    /// Tages-Reset: rotiert Vortages-Profil → Value Area, setzt PnL/Trades/Session-Daten auf Null.
     private void ResetDailyIfNeeded(DateTime candleTime)
     {
         if (candleTime.Date > _lastSessionDate.Date)
@@ -1042,6 +1055,7 @@ public class LucidVwapEliteV14 : ChartStrategy
     // NEWS-FILTER
     // ═══════════════════════════════════════════════════════════════
 
+    /// Prüft ob gerade News-Fenster ist (08:00–08:45 oder 14:00–14:45 EST) → kein Trading.
     private static bool IsNewsTime(DateTime time)
     {
         var tod = time.TimeOfDay;
@@ -1056,6 +1070,7 @@ public class LucidVwapEliteV14 : ChartStrategy
     // PNL TRACKING
     // ═══════════════════════════════════════════════════════════════
 
+    /// Addiert realisierten Trade-PnL zum Tages-PnL und stoppt die Strategy bei Überschreitung des MaxDailyLossUSD.
     private void UpdateDailyPnL(decimal realizedPnL)
     {
         _dailyPnL += realizedPnL;

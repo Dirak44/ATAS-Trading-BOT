@@ -50,14 +50,25 @@ src/LUCID_VWAP_Bot/bin/Debug/net8.0/LUCID_VWAP_Bot.dll
 2. Liquidity Sweep unter einem Swing-Low erkannt
 3. Absorption bestätigt (hohes Volumen, kleine Range)
 4. Delta Flip bullish (Delta dreht von negativ zu positiv)
+5. Multi-TF: EMA Slow steigend (wenn UseMultiTF aktiv)
 
 **Short-Entry:**
 1. Preis über VAH (Value Area High vom Vortag) → Markt ist "teuer"
 2. Liquidity Sweep über einem Swing-High erkannt
 3. Absorption bestätigt (hohes Volumen, kleine Range)
 4. Delta Flip bearish (Delta dreht von positiv zu negativ)
+5. Multi-TF: EMA Slow fallend (wenn UseMultiTF aktiv)
 
 Kein Trade wenn nur ein Teil der Bedingungen erfüllt ist.
+
+### Bonus-Bestätigungen (stärken Signal, blockieren nicht)
+- **LVN (Low Volume Node):** Preis nahe dünn gehandeltem Level
+- **Poor High/Low:** Session-Extreme mit nur 1 Touch (unvollständige Auktion)
+- **Failed Continuation:** Gescheiterter Breakout-Versuch
+
+### Trailing-Stop (optional)
+- ATR-basiert, wird nachgezogen bei Preisbewegung in Trade-Richtung
+- Market-Exit wenn Trailing-Stop ausgelöst wird
 
 ### Filter
 - RTH only (15:30–21:00 EST)
@@ -104,6 +115,47 @@ Alle Parameter sind in der ATAS UI konfigurierbar.
 | Absorption Max Range (Ticks) | 3 | Max. Range in Ticks bei Absorption |
 | Delta Flip Lookback (Bars) | 3 | Bars zurückschauen für Delta-Flip |
 
+### Trailing-Stop
+| Parameter | Default | Beschreibung |
+|-----------|---------|-------------|
+| Trailing-Stop aktiv | false | Trailing-Stop ein/ausschalten |
+| Trailing-Stop ATR Mult | 1.5 | ATR-Multiplikator für Trailing-Abstand |
+
+### Failed Continuation
+| Parameter | Default | Beschreibung |
+|-----------|---------|-------------|
+| Failed Continuation aktiv | true | Erkennung gescheiterter Breakouts |
+| Failed Cont. Lookback (Bars) | 3 | Bars zurückschauen für gescheiterten Breakout |
+
+### Multi-Timeframe
+| Parameter | Default | Beschreibung |
+|-----------|---------|-------------|
+| Multi-TF Trend-Filter aktiv | true | Filtert Trades gegen den übergeordneten Trend |
+| Slow EMA Periode | 50 | Periode der langsamen EMA für Trendrichtung |
+
+## Funktions-Übersicht
+
+| Funktion | Beschreibung |
+|----------|-------------|
+| `OnCalculate` | Hauptlogik pro Bar: Profil/IB/Swings aufbauen, Filter prüfen, Signal auslösen |
+| `UpdateVolumeProfile` | Akkumuliert Volumen pro Tick-Level im heutigen Profil |
+| `CalculateValueArea` | Berechnet VAH, VAL, VPOC aus dem Vortages-Profil (CME-Algorithmus) |
+| `UpdateSessionHighLow` | Trackt Session High/Low und zählt Berührungen für Poor High/Low |
+| `UpdateInitialBalance` | Berechnet Initial Balance (High/Low der ersten X Minuten nach RTH-Open) |
+| `UpdateSwingPoints` | Erkennt 3-Bar-Pivot Swing-Highs/Lows für Liquidity-Sweep-Erkennung |
+| `IsNearLVN` | Prüft ob Preis nahe einem Low Volume Node im Vortages-Profil liegt |
+| `IsPoorHigh` / `IsPoorLow` | True wenn Session-Extreme nur 1x berührt wurde (unvollständige Auktion) |
+| `DetectFailedContinuation` | Erkennt gescheiterte Breakouts die innerhalb X Bars zurückkehren |
+| `DetectAbsorption` | Erkennt Absorption: hohes Volumen bei kleiner Range (Ablehnung) |
+| `DetectDeltaFlip` | Erkennt Vorzeichen-Wechsel im Delta (Richtungswechsel) |
+| `ExecuteTrade` | Sendet Entry/SL/TP Orders an ATAS, initialisiert Trailing-Stop |
+| `OnCurrentPositionChanged` | Berechnet PnL beim Flat-Werden, cancelt offene Orders |
+| `UpdateTrailingStop` | Zieht Stop-Loss nach, löst Market-Exit bei Auslösung |
+| `ClosePositionByTrailingStop` | Cancelt Orders und sendet Market-Exit |
+| `ResetDailyIfNeeded` | Tages-Reset: Profil rotieren, PnL/Trades zurücksetzen |
+| `IsNewsTime` | Prüft ob News-Fenster aktiv ist (kein Trading) |
+| `UpdateDailyPnL` | Addiert Trade-PnL, stoppt Strategy bei Max-Tagesverlust |
+
 ## Logging
 
 Der Bot loggt alle Aktivitäten im ATAS Log-Fenster:
@@ -122,7 +174,7 @@ FLAT – Tages-PnL: 600.00 USD | Trades heute: 1
 
 - .NET 8 (C# 12)
 - ATAS SDK (`ChartStrategy`)
-- Indikatoren: VWAP (Daily), EMA(20), ATR(14)
+- Indikatoren: VWAP (Daily), EMA(20), EMA(50 Slow), ATR(14)
 
 ## Lizenz
 
